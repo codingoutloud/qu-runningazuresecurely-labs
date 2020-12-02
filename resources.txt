@@ -1,0 +1,103 @@
+# Virtual Boston Azure lab 
+
+## Public locations
+
+### Juice Shop app
+
+http://juiceshop.azurefd.net/#/
+
+http://juiceshop.azurefd.net/#/score-board
+
+http://juiceshop.azurefd.net/#/search?q=%3Ciframe%20src%3D%22javascript:alert('bill%20says%20hello%20to%20Virtual%20Boston%20Azure!')%22%3E
+
+### Public Blob
+
+https://juiceshopdata.blob.core.windows.net/wideopen/payload.html
+
+## Azure Portal locations for which you need to be granted access
+
+Log Analytics / Azure Monitor:
+https://portal.azure.com/#@runningazuresecurely.com/resource/subscriptions/25369457-b597-4070-98e7-7f1529829f6d/resourceGroups/juiceshop/providers/Microsoft.OperationalInsights/workspaces/juiceshop/logs
+
+WAF custom rules:
+https://portal.azure.com/#@runningazuresecurely.com/resource/subscriptions/25369457-b597-4070-98e7-7f1529829f6d/resourcegroups/juiceshop/providers/Microsoft.Network/frontdoorwebapplicationfirewallpolicies/juiceshopWAF/customrules
+
+B2B in AAD:
+https://docs.microsoft.com/en-us/azure/active-directory/external-identities/delegate-invitations
+
+## WAF Kusto Queries
+
+### Messy but has some ideas in here
+AzureDiagnostics
+| where Category == "FrontdoorWebApplicationFirewallLog" // or Category == "FrontdoorAccessLog"
+///| where Category == "FrontdoorAccessLog"
+//| where rest http://juiceshop.azurefd.net/rest/products/search?q=
+//| where requestUri_s contains "rest"
+//| where requestUri_s contains "application-configuration"
+///| where httpMethod_s <> "GET"
+| where ruleName_s == "BlockJavaInPayload"
+| where TimeGenerated > ago(80h) 
+| where ruleName_s <> "blockjs"
+| where ruleName_s <> "torblocker"
+///| where ruleName_s <> "DefaultRuleSet-1.0-SQLI-942450"
+| where ruleName_s <> "DefaultRuleSet-1.0-SQLI-942440"
+| order by TimeGenerated desc 
+//| project requestUri_s, ruleName_s, TimeGenerated
+
+
+### CORRELATE WAF and StorageBlobLogs
+AzureDiagnostics
+| join on StorageBlobLogs
+| where CallerIpAddress contains "185.220.100.240"
+| where ResourceType == "FRONTDOORS" and Category == "FrontdoorWebApplicationFirewallLog"
+| where action_s == "Block"
+| where CallerIpAddress contains "185.220.100.240"
+
+
+### "new" WAF RULE HITS - the greatest hits!
+AzureDiagnostics
+| where Category == "FrontdoorWebApplicationFirewallLog" // or Category == "FrontdoorAccessLog"
+| where TimeGenerated > ago(8h)
+| where ruleName_s <> "blockjs"
+| where ruleName_s <> "torblocker"
+| order by TimeGenerated desc
+
+
+### WAF RULE HITS
+AzureDiagnostics
+| where Category == "FrontdoorWebApplicationFirewallLog" // or Category == "FrontdoorAccessLog"
+| where TimeGenerated > ago(8h)
+| order by TimeGenerated desc
+| project ruleName_s, TimeGenerated
+
+### RETURN WAF BLOCKS
+AzureDiagnostics
+| where ResourceType == "FRONTDOORS" and Category == "FrontdoorWebApplicationFirewallLog"
+| where action_s == "Block"
+
+
+### ACCESS LOG ENTRIES
+AzureDiagnostics
+| where ResourceType == "FRONTDOORS" and Category == "FrontdoorAccessLog"
+
+
+
+## OTHER Kusto Queries
+
+SecurityEvent // | where ProductName == "Azure Security Center"
+
+SecurityAlert
+
+SecurityIncident
+| where TimeGenerated > ago(2400h)
+| limit 10
+
+Watchlist
+| where TimeGenerated > ago(2400h)
+| limit 10
+
+CommonSecurityLog
+| where TimeGenerated > ago(249h)
+| limit 10
+
+
